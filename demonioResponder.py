@@ -9,7 +9,38 @@ import sys
 import ConfigParser
 import android
 
-class smsResponder():
+'''#Eliminar espacios que estan demas del mensajes
+            separarCuerpo = cuerpo.strip().upper().split(' ')
+            contarEspacios = separarCuerpo.count('')
+            for veces in range(contarEspacios):
+                separarCuerpo.remove('')
+
+            mensaje = ''
+            comando = separarCuerpo[0]
+            parametro = separarCuerpo[1] if len(separarCuerpo) > 1 else ''
+            if len(separarCuerpo) == 1 and ('AYUDA' in separarCuerpo):
+                #print('Pidio ayuda')
+                mensaje = self.responder  # self.procesarAyuda()
+            elif comando == 'CONSULTAR':
+                #print('Consultando su Cita segun cedula {0}'.format(parametro))
+                mensaje = self.responder  # 'Su cita esta pautada para el dia dd/mm/aaaa'  # self.procesarConsultar(parametro)
+            elif comando == 'CONFIRMAR':
+                #print('Confirmando su Cita')
+                mensaje = self.responder  # 'Confirmada su cita para el dia dd/mm/aaaa'  # self.procesarConfirmar(parametro)
+            elif comando == 'CANCELAR':
+                #print('Cancelando la Cita dada a la cedula {0}'.format(parametro))
+                mensaje = self.responder  # 'Su cita del dia dd/mm/aaaa fue cancelada con exito'  # self.procesarCancelar(parametro)
+            elif comando == 'POSPONER':
+                #print('Posponiendo su Cita de la cedula {0} para la fecha xx/xx/xxxxx'.format(parametro))
+                mensaje = self.responder  # 'Su cita del dia dd/mm/aaaa fue pospuesta para el dia dd/mm/aaaa'  # self.procesarPosponer(parametro)
+            elif comando == 'ELIMINAR':
+                #print('Eliminando Numero de Telefono de las Notificaciones')
+                mensaje = self.responder  # 'Su numero telefonico fue eliminado de la lista de notificaciones'  # self.procesarEliminar(parametro)
+            else:
+                #print('Ninguna de las Anteriores')
+                mensaje =  self.responder  # procesarNingunaAnteriores()'''
+
+class ubicaText():
     def __init__(self):
 
         self.nombreArchivoConf = 'ubicame.cfg'
@@ -29,7 +60,7 @@ class smsResponder():
 
     def configInicial(self):
         '''Metodo que permite extraer todos los parametros
-        del archivo de configuracion pyloro.cfg que se
+        del archivo de configuracion ubicame.cfg que se
         utilizara en todo el script'''
 
         #Obtiene Informacion del archivo de Configuracion .cfg
@@ -80,36 +111,22 @@ class smsResponder():
     def gps(self):
         ''' '''
         self.droid.startLocating(3600,1)
-        time.sleep(10)
-        fin = True
-        segundos = 300
-        seg_trancurridos = 0
-        
-        while fin:
-            time.sleep(1)
-            seg_trancurridos += 1
-            l = self.droid.readLocation()
-            ll = l.result
+        time.sleep(300)
+       
+        l = self.droid.readLocation()
+        ll = l.result
             
-            if "gps" in ll:
-                mensaje = u"Posición actual: "
-                pos = (str(ll["gps"]["latitude"]), str(ll["gps"]["longitude"]))
-                fin = False
-                self.droid.makeToast(u"Posición GPS encontrada")
+        if "gps" in ll:
+            mensaje = u"Posición actual: "
+            pos = (str(ll["gps"]["latitude"]), str(ll["gps"]["longitude"]))
+        else:
+            if "network" in ll:
+                pos = (str(ll["network"]["latitude"]), str(ll["network"]["longitude"]))
+                mensaje = u"Posición red celular: "
             else:
-                if seg_trancurridos == segundos: 
-                    fin = False
-                
-                    if "network" in ll:
-                        pos = (str(ll["network"]["latitude"]), str(ll["network"]["longitude"]))
-                        mensaje = u"Posición red celular: "
-                        #self.droid.makeToast(u"Posición Red Celular encontrada")
-                    else:
-                    
-                        ll = self.droid.getLastKnownLocation().result
-                        pos = (str(ll["network"]["latitude"]), str(ll["network"]["longitude"]))
-                        mensaje = u"Ultima posición red celular: "
-                        #self.droid.makeToast(u"No se pudo establecer conexión, se enviara la ultima posición registrada")
+                ll = self.droid.getLastKnownLocation().result
+                pos = (str(ll["network"]["latitude"]), str(ll["network"]["longitude"]))
+                mensaje = u"Ultima posición red celular: "
 
         pll = "%s,%s" % (str(pos[0]), str(pos[1]))
         mapa = "http://maps.google.com/maps?ll=%s&q=%s" % (pll, pll)
@@ -119,56 +136,31 @@ class smsResponder():
     def abrir(self, id, numero):
         ''' metodo para envio de señal al selenoide'''
         pass
-        self.droid.smsMarkMessageRead([id], True)
+        #self.droid.smsMarkMessageRead([id], True)
 
     def smsProcesar(self, registros):
         ''' '''
 
         print(registros)
         for fila in registros:
-            id, numero, cuerpo = fila          
+            id, numero, cuerpo = fila
             cuerpo =  cuerpo if cuerpo else 'vacio'
             #mensaje = self.responder
             
-            if cuerpo.strip().upper() == 'GPS':
-                mensaje, mapa = self.gps(id, numero)
-
+            c = str(cuerpo.strip().upper())
+            print(type(c))
+            print(len(c))
+            print(c)
+            print(c, 'GPS')
+            print(c == 'GPS')
+            
+            if c == 'GPS':
+                print('entro')
+                mensaje, mapa = self.gps()
+                print('entro', mensaje, mapa)
+                self.droid.smsSend(numero, mapa)
             elif cuerpo.strip().upper() == 'ABRIR':
                 self.abrir(id, numero)
-            
-            '''
-            #Eliminar espacios que estan demas del mensajes
-            separarCuerpo = cuerpo.strip().upper().split(' ')
-            contarEspacios = separarCuerpo.count('')
-            for veces in range(contarEspacios):
-                separarCuerpo.remove('')
-
-            mensaje = ''
-            comando = separarCuerpo[0]
-            parametro = separarCuerpo[1] if len(separarCuerpo) > 1 else ''
-            if len(separarCuerpo) == 1 and ('AYUDA' in separarCuerpo):
-                #print('Pidio ayuda')
-                mensaje = self.responder  # self.procesarAyuda()
-            elif comando == 'CONSULTAR':
-                #print('Consultando su Cita segun cedula {0}'.format(parametro))
-                mensaje = self.responder  # 'Su cita esta pautada para el dia dd/mm/aaaa'  # self.procesarConsultar(parametro)
-            elif comando == 'CONFIRMAR':
-                #print('Confirmando su Cita')
-                mensaje = self.responder  # 'Confirmada su cita para el dia dd/mm/aaaa'  # self.procesarConfirmar(parametro)
-            elif comando == 'CANCELAR':
-                #print('Cancelando la Cita dada a la cedula {0}'.format(parametro))
-                mensaje = self.responder  # 'Su cita del dia dd/mm/aaaa fue cancelada con exito'  # self.procesarCancelar(parametro)
-            elif comando == 'POSPONER':
-                #print('Posponiendo su Cita de la cedula {0} para la fecha xx/xx/xxxxx'.format(parametro))
-                mensaje = self.responder  # 'Su cita del dia dd/mm/aaaa fue pospuesta para el dia dd/mm/aaaa'  # self.procesarPosponer(parametro)
-            elif comando == 'ELIMINAR':
-                #print('Eliminando Numero de Telefono de las Notificaciones')
-                mensaje = self.responder  # 'Su numero telefonico fue eliminado de la lista de notificaciones'  # self.procesarEliminar(parametro)
-            else:
-                #print('Ninguna de las Anteriores')
-                mensaje =  self.responder  # procesarNingunaAnteriores()
-            '''
-        return True
 
     def smsRecibidos(self):
         ''' Metodo que permite buscar los SMS enviados por los
@@ -185,6 +177,7 @@ class smsResponder():
                 id = i['_id']
                 telefono = i['address']
                 sms = i['body']  # Para versiones Futuras el texto del SMS
+                self.droid.smsMarkMessageRead([id], True)
                 listaDevolver.append((id, telefono, sms))
         except:
             self.logger.error('Error al momento de obtener los SMS en la bandeja de entrada del Telefono Android')
@@ -251,7 +244,7 @@ class smsResponder():
             time.sleep(30)
 
 #Instancio la Clase
-app = smsResponder()
+app = ubicaText()
 handler = app.configLog()
 daemon_runner = runner.DaemonRunner(app)
 
