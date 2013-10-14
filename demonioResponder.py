@@ -109,63 +109,76 @@ class ubicaText():
         return handler
 
     def gps(self):
-        ''' '''
+        ''' Metodo que permite obtener las coordenadas del GPS del celular
+        y regresar Latitud y Longitud'''
+
+        terminar = False
+        segundos = 120
+        segTranscurridos = 0
+
         self.droid.startLocating(3600,1)
-        time.sleep(300)
-       
-        l = self.droid.readLocation()
-        ll = l.result
+        time.sleep(10)
+        while not terminar:
+            segTranscurridos+=1
+            ubicacion = self.droid.readLocation()
+            ubi = ubicacion.result
             
-        if "gps" in ll:
-            mensaje = u"Posición actual: "
-            pos = (str(ll["gps"]["latitude"]), str(ll["gps"]["longitude"]))
-        else:
-            if "network" in ll:
-                pos = (str(ll["network"]["latitude"]), str(ll["network"]["longitude"]))
-                mensaje = u"Posición red celular: "
+            if "gps" in ubi:
+                mensaje = u"Posición actual: "
+                pos = (str(ubi["gps"]["latitude"]), str(ubi["gps"]["longitude"]))
+                terminar = True
             else:
-                ll = self.droid.getLastKnownLocation().result
-                pos = (str(ll["network"]["latitude"]), str(ll["network"]["longitude"]))
-                mensaje = u"Ultima posición red celular: "
+                if "network" in ubi:
+                    pos = (str(ubi["network"]["latitude"]), str(ubi["network"]["longitude"]))
+                    mensaje = u"Posicion red celular: "
+                    terminar = True
+                else:
+                    ll = self.droid.getLastKnownLocation().result
+                    pos = (str(ll["network"]["latitude"]), str(ll["network"]["longitude"]))
+                    mensaje = u"Ultima posicion red celular: "
 
-        pll = "%s,%s" % (str(pos[0]), str(pos[1]))
+            if segTranscurridos >= segundos:
+                terminar = True
+        
+        pll = "{0},{1}".format(str(pos[0]), str(pos[1]))
         mapa = "http://maps.google.com/maps?ll=%s&q=%s" % (pll, pll)
+        #mapa2 = 'https://www.google.co.ve/maps/preview?authuser=0#!q={0}'.format(pll)
         self.droid.stopLocating()
-        return mensaje, mapa    
+        return mensaje, mapa
 
-    def abrir(self, id, numero):
+    def raspberryAbrir(self):
         ''' metodo para envio de señal al selenoide'''
         pass
-        #self.droid.smsMarkMessageRead([id], True)
 
     def smsProcesar(self, registros):
-        ''' '''
+        ''' Metodo que recibe un listado de sms que se encuentran en bandeja de entrada
+        del telefono celular y permite clasificarlos segun su peticion, bien sea para
+        obtener la posicion GPS o abrir las puertas del vehiculo'''
 
-        print(registros)
         for fila in registros:
             id, numero, cuerpo = fila
-            cuerpo =  cuerpo if cuerpo else 'vacio'
-            #mensaje = self.responder
+            opcion, comando, autorizado =  cuerpo.split() if cuerpo else 'vacio'
+            
             
             c = str(cuerpo.strip().upper())
-            print(type(c))
-            print(len(c))
-            print(c)
-            print(c, 'GPS')
-            print(c == 'GPS')
-            
+
             if c == 'GPS':
-                print('entro')
                 mensaje, mapa = self.gps()
-                print('entro', mensaje, mapa)
+                print('Mostrando:', mensaje, mapa)
                 self.droid.smsSend(numero, mapa)
-            elif cuerpo.strip().upper() == 'ABRIR':
-                self.abrir(id, numero)
+            
+            elif c == 'ABRIR':
+                self.raspberryAbrir()
+            elif c == 'CORNETA':
+                pass
+            elif c == 'APAGAR':
+                pass
+
 
     def smsRecibidos(self):
         ''' Metodo que permite buscar los SMS enviados por los
          en bandeja de entrada pacientes y guardarlos en una lista 
-         para luego ser procesados con el Metodo enviarSocket()
+         para luego ser procesados
         '''
                 
         listaDevolver = []      
@@ -183,6 +196,16 @@ class ubicaText():
             self.logger.error('Error al momento de obtener los SMS en la bandeja de entrada del Telefono Android')
         return listaDevolver
 
+    def sms(self):
+        ''' Metodo para procesar todo lo referente a peticiones hechas via sms'''
+
+        self.conectarAndroid()
+        smsListaR = self.smsRecibidos()
+        self.smsProcesar(smsListaR)
+        
+    def bluetooh(self):
+        pass
+
     def conectarAndroid(self):
         ''' Metodo que permite recorrer el archivo de configuracion .cfg
         y buscar los telefonos Android conectados via usb para instanciarlos
@@ -190,19 +213,12 @@ class ubicaText():
 
         os.system('adb -s {0} wait-for-device'.format(self.serial_telefono))
         try:
-            self.droid = android.Android((self.ip_telefono, self.puerto_adb_forward))
-            #print('Conectando el telefono {0}, {1}'.format(ip_telefono, puerto_adb_forward))
-            smsListaR = self.smsRecibidos()
-
-            smsListaP = self.smsProcesar(smsListaR)
-            
-            #self.enviarSocket(smsListaP)
-            time.sleep(10)
+            self.droid = android.Android((self.ip_telefono, self.puerto_adb_forward))            
         except:
             self.logger.error('No se pudo Conectar con el Telefono Servidor Android')    
             self.logger.warning('Redirigiendo el Puerto debido a un error al momento de intentar conectar el telefono Android')
             os.system('adb -s {0} forward tcp:{1} tcp:{2}'.format(self.serial_telefono, self.puerto_adb_forward, self.puerto_telefono))
-            time.sleep(10)
+            time.sleep(3)
 
     def reiniciarTelefono(self):
         '''Metodo que permite reinciar el telefono android
@@ -226,9 +242,13 @@ class ubicaText():
 
     def main(self):
         ''' '''
-        self.logger.info('Proceso iniciado <Contestar al Paciente>')      
-        self.conectarAndroid()
-        self.logger.info('Proceso Finalizado <Contestar al Paciente>')
+        self.logger.info('Proceso iniciado')      
+        #-----------------------------------------------------------
+        
+        self.sms()
+        
+        #-----------------------------------------------------------
+        self.logger.info('Proceso Finalizado')
 
     def run(self):
         ''' Este metodo es el que permite ejecutar el hilo del demonio'''
@@ -236,12 +256,13 @@ class ubicaText():
         self.reiniciarTelefono()
         while True:
             #Es necesario volver a conectar cuando se reincia el telefono
-            #Colcoar que si no logra a cpnexpn es xq prbablemente debe estarse reiniiando el telefpmnp, qie espere 2 minutos aprox
+            #Colcoar que si no logra a cpnexpn es xq prbablemente debe estarse 
+            #reiniciando el telefono, qee espere 2 minutos aprox
             #antes de volver a intentarlo
             
             self.logger.debug("Debug message")
             self.main()
-            time.sleep(30)
+            time.sleep(15)
 
 #Instancio la Clase
 app = ubicaText()
