@@ -9,37 +9,6 @@ import sys
 import ConfigParser
 import android
 
-'''#Eliminar espacios que estan demas del mensajes
-            separarCuerpo = cuerpo.strip().upper().split(' ')
-            contarEspacios = separarCuerpo.count('')
-            for veces in range(contarEspacios):
-                separarCuerpo.remove('')
-
-            mensaje = ''
-            comando = separarCuerpo[0]
-            parametro = separarCuerpo[1] if len(separarCuerpo) > 1 else ''
-            if len(separarCuerpo) == 1 and ('AYUDA' in separarCuerpo):
-                #print('Pidio ayuda')
-                mensaje = self.responder  # self.procesarAyuda()
-            elif comando == 'CONSULTAR':
-                #print('Consultando su Cita segun cedula {0}'.format(parametro))
-                mensaje = self.responder  # 'Su cita esta pautada para el dia dd/mm/aaaa'  # self.procesarConsultar(parametro)
-            elif comando == 'CONFIRMAR':
-                #print('Confirmando su Cita')
-                mensaje = self.responder  # 'Confirmada su cita para el dia dd/mm/aaaa'  # self.procesarConfirmar(parametro)
-            elif comando == 'CANCELAR':
-                #print('Cancelando la Cita dada a la cedula {0}'.format(parametro))
-                mensaje = self.responder  # 'Su cita del dia dd/mm/aaaa fue cancelada con exito'  # self.procesarCancelar(parametro)
-            elif comando == 'POSPONER':
-                #print('Posponiendo su Cita de la cedula {0} para la fecha xx/xx/xxxxx'.format(parametro))
-                mensaje = self.responder  # 'Su cita del dia dd/mm/aaaa fue pospuesta para el dia dd/mm/aaaa'  # self.procesarPosponer(parametro)
-            elif comando == 'ELIMINAR':
-                #print('Eliminando Numero de Telefono de las Notificaciones')
-                mensaje = self.responder  # 'Su numero telefonico fue eliminado de la lista de notificaciones'  # self.procesarEliminar(parametro)
-            else:
-                #print('Ninguna de las Anteriores')
-                mensaje =  self.responder  # procesarNingunaAnteriores()'''
-
 class ubicaText():
     def __init__(self):
 
@@ -108,7 +77,7 @@ class ubicaText():
         self.logger.addHandler(handler)
         return handler
 
-    def gps(self):
+    def gps(self, evento):
         ''' Metodo que permite obtener las coordenadas del GPS del celular
         y regresar Latitud y Longitud'''
 
@@ -150,42 +119,81 @@ class ubicaText():
         ''' metodo para envio de señal al selenoide'''
         pass
 
+    def verificaSms(self, numero, parametros):
+        ''' Verifica si los parametros pasados en el sms
+        son correctos'''
+
+        self.parametros = parametros
+        mensaje = self.parametros.split()
+        self.numero = numero
+        listaAutorizados = [auto[1] for auto in self.fc.items('AUTORIZADOS')]
+        param2 = ''
+        param3 = mensaje[2] if len(mensaje) == 3 else ''
+        comandoDevolver = ''
+
+        #Verifica si el numero telefonico esta autorizado para enviar comandos
+        if numero in listaAutorizados or param3 in listaAutorizados:
+            if len(mensaje) == 1:
+                comando = mensaje[0].lower()
+                if self.fc.has_option('EVENTOS', comando):
+                    if self.fc.get('EVENTOS', comando):
+                        self.error, comandoDevolver = True, 'El Comando:{0} necesita un paremetro adicional,\
+                        Ej: LUCES ON'.format(comando)
+                else:
+                    self.error, comandoDevolver = True, 'El Comando:{0} no Existe, escriba un comando valido'.format(comando)
+            elif len(mensaje) == 2:
+                comando, param2 = mensaje
+                if self.fc.has_option('EVENTOS', comando):
+                    valorEventos = self.fc.get('EVENTOS', comando).split(',')
+                    if param2.lower() in valorEventos:
+                        self.error, comandoDevolver = False, self.parametros
+                    else:
+                        self.error, comandoDevolver = True, 'El Comando:{0} no contiene el Parametro:{1}'.format(
+                            comando, param2)
+                else:
+                    self.error, comandoDevolver = True, 'El Comando:{0} no Existe, escriba un comando valido'.format(comando)
+            elif len(mensaje) == 3:
+                comando, param2, param3 = mensaje
+                if self.fc.has_option('EVENTOS', comando):
+                    valorEventos = self.fc.get('EVENTOS', comando).split(',')
+                    if param2.lower() in valorEventos:
+                        self.error, comandoDevolver = False, comando + ' ' + param2
+                    else:
+                        self.error, comandoDevolver = True, 'El Comando:{0} no contiene el Parametro:{1}'.format(
+                            comando, param2)
+                else:
+                    self.error, comandoDevolver = True, 'El Comando:{0} no Existe, escriba un comando valido'.format(comando)
+        else:
+            self.error, comandoDevolver = True, 'Telefono no esta Autotizado o Contraseña Invalida'
+        return self.error, comandoDevolver
+
     def smsProcesar(self, registros):
         ''' Metodo que recibe un listado de sms que se encuentran en bandeja de entrada
         del telefono celular y permite clasificarlos segun su peticion, bien sea para
         obtener la posicion GPS o abrir las puertas del vehiculo'''
-
+        print(registros)
         for fila in registros:
             id, numero, cuerpo = fila
-            mensaje = cuerpo.split()
-            
-            if len(mensaje) == 1:
-                comando = mensaje[0]
-            elif len(mensaje) == 2:
-                comando, param1 =  mensaje
-            elif len(mensaje) == 3:
-                comando, param1, param2 =  mensaje
+            ejecutar, sentencia = self.verificaSms(numero, cuerpo)
+            if ejecutar:
+                comando, evento = sentencia.split()
+                if comando.upper() == 'GPS':
+                    mensaje, mapa = self.gps(evento)
+                    self.droid.smsSend(numero, mapa)
+                elif comando.upper() == 'MOTOR':
+                    mensaje, mapa = self.motor(evento)
+                    
+                elif comando.upper() == 'PUERTAS':
+                    mensaje, mapa = self.puertas(evento)
+                    
+                elif comando.upper() == 'LUCES':
+                    mensaje, mapa = self.luces(evento)
+                    
+                elif comando.upper() == 'CORNETA':
+                    mensaje, mapa = self.corneta(evento)
             else:
-                print('No se reonoce el comando')
-                comando, accion, autorizado = ['', '', '']
-
-
-            comando = comando.strip().upper()
-            if comando == 'GPS':
-                mensaje, mapa = self.gps()
-                self.droid.smsSend(numero, mapa)
-            
-            elif comando == 'PUERTAS':
-                self.raspberryAbrir()
-            
-            elif comando == 'CORNETA':
-                pass
-            
-            elif comando == 'LUCES':
-                pass
-            
-            elif comando == 'MOTOR':
-                pass
+                self.logger.error(sentencia)
+                self.droid.smsSend(numero, sentencia)
 
     def smsRecibidos(self):
         ''' Metodo que permite buscar los SMS enviados por los
