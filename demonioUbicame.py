@@ -84,6 +84,10 @@ class ubicaText():
         terminar = False
         segundos = 120
         segTranscurridos = 0
+        pos = [0, 0]
+        mensaje = ''
+        mapa = ''
+        smsdevolver = ''
 
         self.droid.startLocating(3600,1)
         time.sleep(10)
@@ -102,18 +106,23 @@ class ubicaText():
                     mensaje = u"Posicion red celular: "
                     terminar = True
                 else:
-                    ll = self.droid.getLastKnownLocation().result
-                    pos = (str(ll["network"]["latitude"]), str(ll["network"]["longitude"]))
-                    mensaje = u"Ultima posicion red celular: "
+                    lll = self.droid.getLastKnownLocation().result
+                    if "network" in lll:
+                        print('ultima posicion',lll)
+                        pos = (str(lll["network"]["latitude"]), str(lll["network"]["longitude"]))
+                        mensaje = u"Ultima posicion red celular: "
+                    else:
+                        pos = [0, 0]
+                        mensaje = "No se pudo obtener la Ultima posicion de red celular"
 
             if segTranscurridos >= segundos:
                 terminar = True
         
         pll = "{0},{1}".format(str(pos[0]), str(pos[1]))
         mapa = "http://maps.google.com/maps?ll=%s&q=%s" % (pll, pll)
-        #mapa2 = 'https://www.google.co.ve/maps/preview?authuser=0#!q={0}'.format(pll)
+        smsDevolver = '{0} {1}'.format(mensaje, mapa)
         self.droid.stopLocating()
-        return mensaje, mapa
+        return smsDevolver
 
     def raspberryAbrir(self):
         ''' metodo para envio de señal al selenoide'''
@@ -171,29 +180,40 @@ class ubicaText():
         ''' Metodo que recibe un listado de sms que se encuentran en bandeja de entrada
         del telefono celular y permite clasificarlos segun su peticion, bien sea para
         obtener la posicion GPS o abrir las puertas del vehiculo'''
-        print(registros)
+        #print(registros)
         for fila in registros:
             id, numero, cuerpo = fila
             ejecutar, sentencia = self.verificaSms(numero, cuerpo)
-            if ejecutar:
+            if not ejecutar:
                 comando, evento = sentencia.split()
                 if comando.upper() == 'GPS':
-                    mensaje, mapa = self.gps(evento)
-                    self.droid.smsSend(numero, mapa)
+                    mensaje = self.gps(evento)
+                    self.logger.info('Mensaje enviado a {0}:'.format(numero)+'->'+mensaje)
+                    self.smsEnviar(id, numero, mensaje)
+
                 elif comando.upper() == 'MOTOR':
-                    mensaje, mapa = self.motor(evento)
+                    mensaje = self.motor(evento)
                     
                 elif comando.upper() == 'PUERTAS':
-                    mensaje, mapa = self.puertas(evento)
+                    mensaje = self.puertas(evento)
                     
                 elif comando.upper() == 'LUCES':
-                    mensaje, mapa = self.luces(evento)
+                    mensaje = self.luces(evento)
                     
                 elif comando.upper() == 'CORNETA':
-                    mensaje, mapa = self.corneta(evento)
+                    mensaje = self.corneta(evento)
             else:
                 self.logger.error(sentencia)
                 self.droid.smsSend(numero, sentencia)
+    
+    def smsEnviar(self, numero, mensaje):
+        '''Metodo para enviar los SMS a los Usuarios '''
+
+        self.numeroTlf = numero
+        self.mensaje = mensaje
+
+        self.droid.smsSend(self.numeroTlf, self.mensaje)
+        self.droid.smsMarkMessageRead([id], True)
 
     def smsRecibidos(self):
         ''' Metodo que permite buscar los SMS enviados por los
@@ -210,7 +230,6 @@ class ubicaText():
                 id = i['_id']
                 telefono = i['address']
                 sms = i['body']  # Para versiones Futuras el texto del SMS
-                self.droid.smsMarkMessageRead([id], True)
                 listaDevolver.append((id, telefono, sms))
         except:
             self.logger.error('Error al momento de obtener los SMS en la bandeja de entrada del Telefono Android')
