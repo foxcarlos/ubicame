@@ -206,14 +206,15 @@ class ubicaText():
                 self.logger.error(sentencia)
                 self.droid.smsSend(numero, sentencia)
     
-    def smsEnviar(self, numero, mensaje):
+    def smsEnviar(self, id, numero, mensaje):
         '''Metodo para enviar los SMS a los Usuarios '''
 
+        self.id = id
         self.numeroTlf = numero
         self.mensaje = mensaje
 
         self.droid.smsSend(self.numeroTlf, self.mensaje)
-        self.droid.smsMarkMessageRead([id], True)
+        self.droid.smsMarkMessageRead([self.id], True)
 
     def smsRecibidos(self):
         ''' Metodo que permite buscar los SMS enviados por los
