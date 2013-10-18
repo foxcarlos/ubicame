@@ -87,7 +87,7 @@ class ubicaText():
         pos = [0, 0]
         mensaje = ''
         mapa = ''
-        smsdevolver = ''
+        smsDevolver = ''
 
         self.droid.startLocating(3600,1)
         time.sleep(10)
@@ -191,7 +191,7 @@ class ubicaText():
                 comando, evento = sentencia.split()
                 if comando.upper() == 'GPS':
                     mensaje = self.gps(evento)
-                    self.logger.info('Mensaje enviado a {0}:'.format(numero)+'->'+mensaje)
+                    self.logger.info('Mensaje enviado a:{0} --> {1}'.format(numero, mensaje))
                     self.smsEnviar(id, numero, mensaje)
 
                 elif comando.upper() == 'MOTOR':
@@ -205,8 +205,12 @@ class ubicaText():
                     
                 elif comando.upper() == 'CORNETA':
                     mensaje = self.corneta(evento)
+
+                elif comando.upper() == 'REINICIAR_TELEFONO':
+                    self.reiniciarTelefono()
+                    self.conectarAndroid()
             else:
-                self.logger.error(sentencia)
+                self.logger.error('Mensaje enviado a: {0} --> {1}'.format(numero, sentencia))
                 self.smsEnviar(id, numero, sentencia)
     
     def smsEnviar(self, id, numero, mensaje):
@@ -282,14 +286,9 @@ class ubicaText():
         time.sleep(10)
 
     def main(self):
-        ''' '''
-        self.logger.info('Proceso iniciado')      
-        #-----------------------------------------------------------
-        
+        ''' Main Proncipal'''
+
         self.sms()
-        
-        #-----------------------------------------------------------
-        self.logger.info('Proceso Finalizado')
 
     def run(self):
         ''' Este metodo es el que permite ejecutar el hilo del demonio'''
