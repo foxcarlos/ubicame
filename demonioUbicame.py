@@ -108,9 +108,12 @@ class ubicaText():
                 else:
                     lll = self.droid.getLastKnownLocation().result
                     if "network" in lll:
-                        print('ultima posicion',lll)
-                        pos = (str(lll["network"]["latitude"]), str(lll["network"]["longitude"]))
-                        mensaje = u"Ultima posicion red celular: "
+                        if lll['network']:
+                            pos = (str(lll["network"]["latitude"]), str(lll["network"]["longitude"]))
+                            mensaje = u"Ultima posicion red celular: "
+                        else:
+                            pos = [0, 0]
+                            mensaje = "No se pudo obtener la Ultima posicion de red celular"
                     else:
                         pos = [0, 0]
                         mensaje = "No se pudo obtener la Ultima posicion de red celular"
@@ -204,15 +207,13 @@ class ubicaText():
                     mensaje = self.corneta(evento)
             else:
                 self.logger.error(sentencia)
-                self.droid.smsSend(numero, sentencia)
+                self.smsEnviar(id, numero, sentencia)
     
     def smsEnviar(self, id, numero, mensaje):
         '''Metodo para enviar los SMS a los Usuarios '''
-
         self.id = id
         self.numeroTlf = numero
         self.mensaje = mensaje
-
         self.droid.smsSend(self.numeroTlf, self.mensaje)
         self.droid.smsMarkMessageRead([self.id], True)
 
