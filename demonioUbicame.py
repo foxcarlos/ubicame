@@ -8,6 +8,8 @@ import os
 import sys
 import ConfigParser
 import android
+import RPi.GPIO as pi
+
 
 class ubicaText():
     def __init__(self):
@@ -129,7 +131,10 @@ class ubicaText():
 
     def raspberryAbrir(self):
         ''' metodo para envio de señal al selenoide'''
-        pass
+        pi.cleanup()
+        pi.setmode(pi.BOARD)
+        pi.setup(11, pi.OUT)
+        pi.output(11, True)
 
     def verificaSms(self, numero, parametros):
         ''' Verifica si los parametros pasados en el sms
