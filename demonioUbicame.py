@@ -8,7 +8,7 @@ import os
 import sys
 import ConfigParser
 import android
-import RPi.GPIO as pi
+#import RPi.GPIO as pi
 
 
 class ubicaText():
@@ -138,7 +138,8 @@ class ubicaText():
 
     def verificaSms(self, numero, parametros):
         ''' Verifica si los parametros pasados en el sms
-        son correctos'''
+        son correctos, valor de entrada:
+            (numeroTelefono, smsBandejaEntrada)'''
 
         self.parametros = parametros
         mensaje = self.parametros.split()
@@ -147,44 +148,102 @@ class ubicaText():
         param2 = ''
         param3 = mensaje[2] if len(mensaje) == 3 else ''
         comandoDevolver = ''
+        metodoDevolver = ''
+        ejecutarMetodo = ''
+        error = True
 
         #Verifica si el numero telefonico esta autorizado para enviar comandos
         if numero in listaAutorizados or param3 in listaAutorizados:
+            #Si Longitud es 1, es decir que se envio un comando si su evento
             if len(mensaje) == 1:
                 comando = mensaje[0].lower()
+                #Verifico si Existe la OPCION "Comando" en los EVENTOS del archivo .cfg
                 if self.fc.has_option('EVENTOS', comando):
+                    #Verifico que el comando necesita un evento Ej on
                     if self.fc.get('EVENTOS', comando):
-                        self.error, comandoDevolver = True, 'El Comando:{0} necesita un paremetro adicional,\
+                        error, comandoDevolver = True, 'El Comando:{0} necesita un paremetro adicional,\
                         Ej: LUCES ON'.format(comando)
                 else:
-                    self.error, comandoDevolver = True, 'El Comando:{0} no Existe, escriba un comando valido'.format(comando)
+                    error, comandoDevolver = True, 'El Comando:{0} no Existe, escriba un comando valido'.\
+                            format(comando)
+            
+            #Si Longitud es 2, es decir que se envio un comando con su evento
             elif len(mensaje) == 2:
                 comando, param2 = mensaje
                 if self.fc.has_option('EVENTOS', comando):
                     valorEventos = self.fc.get('EVENTOS', comando).split(',')
                     if param2.lower() in valorEventos:
-                        self.error, comandoDevolver = False, self.parametros
+                        if self.fc.has_option('METODOS', comando):  # Si existe la opcion dentro de la seccion
+                            #Obtengo el nombre del metodo asociado al comando pasado
+                            ejecutarMetodo = fc.get('METODOS', comando)  
+                            if ejecutarMetodo:  # Si la opcion "comando" pasada  tiene un valor dentro de la seccion METODO
+                                error, comandoDevolver, metodoDevolver = False, self.parametros, ejecutarMetodo
+                            else:
+                                error, comandoDevolver = True, 'La opcion {0} dentro de la seccion "METODOS" no \
+                                        tiene ningun valor asignado dentro del archivo de configuracion .fcg'.format(comando)
+                        else:
+                            error, comandoDevolver = True, 'El Comando:{0} no contiene ningun metodo llamado:{1}'\
+                                    .format(comando, ejecutarMetodo)
                     else:
-                        self.error, comandoDevolver = True, 'El Comando:{0} no contiene el Parametro:{1}'.format(
+                        error, comandoDevolver = True, 'El Comando:{0} no contiene el Parametro:{1}'.format(
                             comando, param2)
                 else:
-                    self.error, comandoDevolver = True, 'El Comando:{0} no Existe, escriba un comando valido'.format(comando)
+                    error, comandoDevolver = True, 'El Comando:{0} no Existe, escriba un comando valido'.format(comando)
+            
+            #Si Longitud es 3, es decir que se envio un comando con su evento y una clave
             elif len(mensaje) == 3:
                 comando, param2, param3 = mensaje
                 if self.fc.has_option('EVENTOS', comando):
                     valorEventos = self.fc.get('EVENTOS', comando).split(',')
                     if param2.lower() in valorEventos:
-                        self.error, comandoDevolver = False, comando + ' ' + param2
+                        if self.fc.has_option('METODOS', comando):  # Si existe la opcion dentro de la seccion
+                            #Obtengo el nombre del metodo asociado al comando pasado
+                            ejecutarMetodo = fc.get('METODOS', comando)
+                            if ejecutarMetodo:  # Si la opcion "comando" pasada  tiene un valor dentro de la seccion METODO
+                                error, comandoDevolver, metodoDevolver = False, comando + ' ' + param2, ejecutarMetodo
+                            else:
+                                error, comandoDevolver = True, 'La opcion {0} dentro de la seccion "METODOS" no \
+                                        tiene ningun valor asignado dentro del archivo de configuracion .fcg'.format(comando)
+                        else:
+                            error, comandoDevolver = True, 'El Comando:{0} no contiene ningun metodo llamado:{1}'\
+                                    .format(comando, ejecutarMetodo)
                     else:
-                        self.error, comandoDevolver = True, 'El Comando:{0} no contiene el Parametro:{1}'.format(
+                        error, comandoDevolver = True, 'El Comando:{0} no contiene el Parametro:{1}'.format(
                             comando, param2)
                 else:
-                    self.error, comandoDevolver = True, 'El Comando:{0} no Existe, escriba un comando valido'.format(comando)
+                    error, comandoDevolver = True, 'El Comando:{0} no Existe, escriba un comando valido'.format(comando)
+            
+            #Si Longitud es 3, es decir que se envio un comando con su evento y una clave
+            elif len(mensaje) >3:
+                error, comandoDevolver = True, 'Demasiados Parametros'
         else:
-            self.error, comandoDevolver = True, 'Telefono no esta Autotizado o Contraseña Invalida'
-        return self.error, comandoDevolver
+            error, comandoDevolver = True, 'Telefono no esta Autotizado o Contraseña Invalida'
+        return error, comandoDevolver, metodoDevolver
 
     def smsProcesar(self, registros):
+        ''' Metodo que recibe un listado de sms que se encuentran en bandeja de entrada
+        del telefono celular y permite clasificarlos segun su peticion, bien sea para
+        obtener la posicion GPS o abrir las puertas del vehiculo'''
+        #print(registros)
+        for fila in registros:
+            id, numero, cuerpo = fila
+            error, sentencia, metodo = self.verificaSms(numero, cuerpo)
+            if not error:
+                comando, evento, metodo = sentencia.split()
+                metodo2 = '{0}({1})'.format(metodo, evento)
+                print(metodo2)
+                #mensaje = self.gps(evento)
+                #self.logger.info('Mensaje enviado a:{0} --> {1}'.format(numero, mensaje))
+                #self.smsEnviar(id, numero, mensaje)
+                
+                #elif comando.upper() == 'REINICIAR_TELEFONO':
+                #    self.reiniciarTelefono()
+                #    self.conectarAndroid()
+            else:
+                self.logger.error('Mensaje enviado a: {0} --> {1}'.format(numero, sentencia))
+                self.smsEnviar(id, numero, sentencia)
+
+    def smsProcesarOld(self, registros):
         ''' Metodo que recibe un listado de sms que se encuentran en bandeja de entrada
         del telefono celular y permite clasificarlos segun su peticion, bien sea para
         obtener la posicion GPS o abrir las puertas del vehiculo'''
@@ -230,6 +289,7 @@ class ubicaText():
         ''' Metodo que permite buscar los SMS enviados por los
          en bandeja de entrada pacientes y guardarlos en una lista 
          para luego ser procesados
+         Valor de retorno: (id, telefono, sms)
         '''
                 
         listaDevolver = []      
